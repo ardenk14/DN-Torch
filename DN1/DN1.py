@@ -5,7 +5,7 @@ import random
 
 class DN1(nn.Module):
 
-    def __init__(self, x_size, num_neurons, z_size, topk=1, ztopk=1):
+    def __init__(self, x_size, num_neurons, z_size, topk=1, ztopk=1, y2y_connections=True):
         self.z_response = torch.zeros(z_size)
         self.y_response = torch.zeros(num_neurons)
         self.x_response = torch.zeros(x_size)
@@ -17,20 +17,18 @@ class DN1(nn.Module):
         # Setup neurons for hidden layer
         self.num_neurons_init = 0
         self.max_num_neurons = num_neurons
-        self.neurons = torch.zeros((num_neurons + z_size, x_size+num_neurons+z_size))
+        self.y_neurons = torch.zeros((num_neurons, x_size+num_neurons+z_size))
+        self.z_neurons = torch.zeros((z_size, x_size+num_neurons+z_size))
         self.ages = torch.ones(num_neurons + z_size)
 
         self.topk = topk
         self.ztopk = ztopk
         self.last_response = None
+        self.y2y_connections = y2y_connections
 
     def update(self, x, z, supervized_z=None):
         # Combine x and z with y -> inpt_vec
-        x = x / (torch.norm(x) + 0.000000000001)
-        y = self.y_response / (torch.norm(self.y_response) + 0.000000000001)
-        z = z / (torch.norm(z) + 0.000000000001)
-        inpt = torch.hstack([x, y, z])
-        inpt = inpt / (torch.norm(inpt) + 0.000000000001)
+        inpt = torch.hstack([x, self.y_response, z])
 
         # Dot product inpt_vec (sizex1) with neurons (E x size)
         response = self.neurons @ inpt
@@ -51,7 +49,6 @@ class DN1(nn.Module):
             self.update_neuron_weights(inpt, indxs)
 
         # Create new neuron if responses not high enough and you have room
-        #print("R: ", response[self.y_indx[0]:self.y_indx[1]])
         if torch.all(response[self.y_indx[0]:self.y_indx[1]] < 0.5) and self.num_neurons_init < self.max_num_neurons:
             print("CREATING NEW NEURON")
             final_rsp[self.y_indx[0] + self.num_neurons_init] = 1.0
